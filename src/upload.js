@@ -110,9 +110,11 @@ http.createServer(options, function (req, res) {
             } else {
                 dir = UPLOAD_DIR;
             }
-            fs.rmdir(dir + fields.folderBase, (e) => { });
-            res.write('SUCCESS');
-            return res.end();
+            fs.rmdir(dir + fields.folderBase, { recursive: true }, (e) => {
+                res.write('SUCCESS'+e);
+                return res.end();
+             });
+            
         });
         return;
 
