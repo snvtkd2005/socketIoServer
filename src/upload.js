@@ -95,6 +95,29 @@ http.createServer(options, function (req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
 
 
+    // 删除单品文件夹
+    if (req.url === '/removeFolderBase' && req.method.toLowerCase() === 'post') {
+        const form = new formidable.IncomingForm(
+            {
+                encoding: 'utf-8'
+            }
+        );
+        form.parse(req, function (err, fields) {
+            if (err) throw err;
+            let dir = "";
+            if (fields.type == "scene") {
+                dir = UPLOAD_DIR_SCENE;
+            } else {
+                dir = UPLOAD_DIR;
+            }
+            fs.rmdir(dir + fields.folderBase, (e) => { });
+            res.write('SUCCESS');
+            return res.end();
+        });
+        return;
+
+    }
+
 
     if (req.url === '/metaWorld' && req.method.toLowerCase() === 'post') {
         const form = new formidable.IncomingForm(
@@ -397,7 +420,7 @@ http.createServer(options, function (req, res) {
             let foldPath = "";
             let fileName = fields.fileName;
 
-            foldPath = folderBase; 
+            foldPath = folderBase;
             // console.log(" 获取文件存储的文件夹名 ,",foldPath);
 
             if (!fs.existsSync(foldPath)) {
