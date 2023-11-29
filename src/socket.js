@@ -4,8 +4,8 @@
 
 const express = require('express');
 
-// const http = require('http');
-const http = require('https');
+const http = require('http');
+// const http = require('https');
 const socketIO = require('socket.io');
 const fs = require('fs');
 
@@ -81,22 +81,22 @@ io.on('connection', (socket) => {
             if (params.title == "删除") {
                 DelUserModel(params.userModelId);
             }
-
-            // if (params.title == "添加") {
-            //     AddUserModel(params.userModel);
-            // }
-            // if (params.title == "修改") {
-            //     EditorUserModel(params.userModel);
-            // }
-            // if (params.title == "删除") {
-            //     DelUserModel(params.userModelId);
-            // }
-
             // console.log("收到 同步用户模型 消息： ",params); 
-
         }
-        // console.log("收到客户端的消息：",messageData); 
 
+        if (params.type == "同步场景状态") {
+            // 由第一个链接到该房间服务器的玩家上传场景数据
+            if (params.title == "初始化") {
+                AddRoomSceneState(params.message.roomName, params.sceneModels);
+            }
+            // 每个客户端对场景物体交互，都发送给服务器。再由服务器下发给其他客户端
+            if (params.title == "更新single") {
+                UpdateRoomSceneState(params.message.roomName, params.model);
+            }
+        }
+
+        // console.log("收到客户端的消息：",messageData); 
+        // 向所有用户转发信息
         io.emit('msg', data);
         // io.emit('msg', JSON.stringify(messageData));
         // io.in(messageData.roomName).emit('msg', JSON.stringify(messageData));
@@ -118,25 +118,26 @@ io.on('connection', (socket) => {
         console.log('user connected 加入房间 ', socket.id, messageData.roomName);
 
 
+        // 刷新房间内其他用户
         GetAllUserByRoomName(socket, messageData.id, messageData.roomName);
+
+
+        // if (userModels.length > 0) {
+        //     let messageData = {};
+        //     messageData.type = "同步用户模型";
+        //     messageData.fnName = "_SendUpdateUserModels";
+        //     messageData.title = "刷新";
+        //     messageData.roomName = socket.data.roomName;
+        //     messageData.userModels = userModels;
+        //     socket.emit('msg', JSON.stringify(messageData));
+        //     // console.log("刷新用户模型 ", userModels);
+        // }
+
+
 
         messageData.type = "用户加入";
         messageData.message = "";
         io.emit('msg', JSON.stringify(messageData));
-
-
-
-        if (userModels.length > 0) {
-            let messageData = {};
-            messageData.type = "同步用户模型";
-            messageData.fnName = "_SendUpdateUserModels";
-            messageData.title = "刷新";
-            messageData.roomName = socket.data.roomName;
-            messageData.userModels = userModels;
-            socket.emit('msg', JSON.stringify(messageData));
-            // console.log("刷新用户模型 ", userModels);
-        }
-
     })
 
     socket.on('heart', (data) => {
@@ -147,16 +148,7 @@ io.on('connection', (socket) => {
     // 监听客户端断开
     socket.on('disconnect', () => {
         // console.log('==客户端断开===');
-        console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName);
-
-        //广播 该id、房间的用户离开
-        let messageData = {};
-        messageData.type = "用户离开";
-        messageData.roomName = socket.data.roomName;
-        messageData.id = socket.data.id;
-        io.emit('msg', JSON.stringify(messageData));
-
-
+        LeaveRoom(socket);
     })
 
 
@@ -186,8 +178,27 @@ async function GetAllUserByRoomName(socket, id, roomName) {
     }
 
     messageData.message = JSON.stringify(allsocketName);
-
     socket.emit('msg', JSON.stringify(messageData));
+
+
+    //先刷新用户，再刷新场景状态
+    setTimeout(() => {
+        let sceneModels = GetRoomSceneState(messageData.roomName);
+        if (sceneModels.length > 0) {
+            let messageData = {};
+            messageData.type = "获取场景状态";
+            messageData.fnName = "_SendUpdateSceneModels";
+            messageData.title = "刷新";
+            messageData.roomName = socket.data.roomName;
+            messageData.sceneModels = sceneModels;
+            socket.emit('msg', JSON.stringify(messageData));
+            // console.log("新用户加入，向其发送场景状态 ", sceneModels);
+        }
+    }, 500);
+
+
+
+
     // console.log(messageData);
 
     // return ( allsocketName);
@@ -199,6 +210,8 @@ async function GetAllUserByRoomName(socket, id, roomName) {
     // io.in("room1");
 
 }
+
+
 
 
 app.get('/', (request, response) => {
@@ -249,69 +262,118 @@ function DelUserModel(id) {
 
 
 // 场景中同步的物体，在服务器中更新。用户每次连接或激活焦点，从服务器中读取物体状态
-let sceneModels = [];
-function addDyncSceneModel(id, type, state) {
+let roomsScene = [
+    { roomName: '', sceneModels: [] },
+];
+function addDyncSceneModel(sceneModels, id, type, state) {
     sceneModels.push({ id: id, type: type, state: state });
 }
-addDyncSceneModel("", "offsetTime",
-    {
-        offsetTime: 0,
-        times: 0
-    });
-let time = 0;
-
-setInterval(() => {
-    let messageData = {};
-    messageData.type = "同步场景模型";
-    messageData.fnName = "_DyncSceneFromServer";
-    messageData.params = sceneModels;
-    io.emit('msg', JSON.stringify(messageData));
-
-}, 1000);
-setInterval(() => {
-
-    // time++;
-    for (let i = 0; i < sceneModels.length; i++) {
-        const item = sceneModels[i];
-        var g = new Date().getTime(); //1675586194683
-        let offsetTime = g - 1675586194683;
-        if (item.type == "platform") {
-            const state = item.state;
-            state.offsetTime = offsetTime;
-
-            // state.timeNum++;
-            // if (state.timeNum >= state.timecount) {
-            //     state.timeNum = 0;
-            //     if (state.direction == "inStart") {
-            //         state.direction = "inStartToEnd";
-            //         state.timecount = state.inStartToEndCount;
-            //         continue;
-            //     }
-            //     if (state.direction == "inStartToEnd") {
-            //         state.direction = "inEnd";
-            //         state.timecount = state.inEndCount;
-            //         continue;
-            //     }
-            //     if (state.direction == "inEnd") {
-            //         state.direction = "inEndToStart";
-            //         state.timecount = state.inEndToStartCount;
-            //         continue;
-            //     }
-            //     if (state.direction == "inEndToStart") {
-            //         state.direction = "inStart";
-            //         state.timecount = state.inStartCount;
-            //         continue;
-            //     }
-            // }
-            // console.log(state.timeNum);
+function ClearRoomSceneState(roomName) {
+    for (let i = roomsScene.length - 1; i >= 0; i--) {
+        if (roomsScene[i].roomName == roomName) {
+            roomsScene.splice(i, 1);
         }
-        if (item.type == "offsetTime") {
-            const state = item.state;
-            state.offsetTime = offsetTime;
-            // state.times ++;
-            // if(state.times >10){
-            //     state.times = 0;
-            // } 
+    }
+}
+function AddRoomSceneState(roomName, sceneModels) {
+    // 由服务器端同一设置起始和偏移时间
+    addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683, });
+    roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
+    console.log("初始化场景状态", roomName, sceneModels);
+}
+function UpdateRoomSceneState(roomName, _model) {
+    roomsScene.forEach(room => {
+        if (room.roomName == roomName) {
+            room.sceneModels.forEach(model => {
+                if (model.id == _model.id) {
+                    model.state = _model.state;
+                    if (_model.state.health == 0) {
+                        setTimeout(() => {
+                            model.state.health = model.state.maxHealth;
+                            model.state.display = true;
+                            SendMsgToRoom(roomName, "", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
+                        }, 12000);
+                    }
+                }
+            });
+        }
+    });
+}
+
+async function SendMsgToRoom(roomName, title, model) {
+    let messageData = {};
+    messageData.type = "服务器下发";
+    messageData.fnName = "ReceiveFromServer";
+    messageData.model = model;
+    const sockets = await io.in(roomName).fetchSockets();
+    for (let i = 0; i < sockets.length; i++) {
+        const socketData = sockets[i].data;
+        if (socketData.roomName == roomName) {
+            sockets[i].emit('msg', JSON.stringify(messageData));
+        }
+    }
+}
+async function LeaveRoom(socket) {
+    console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName);
+
+    let roomName = socket.data.roomName;
+    let messageData = {};
+    messageData.type = "用户离开";
+    messageData.roomName = socket.data.roomName;
+    messageData.id = socket.data.id;
+    const sockets = await io.in(roomName).fetchSockets();
+
+    let has = false;
+    for (let i = 0; i < sockets.length; i++) {
+        const socketData = sockets[i].data;
+        if (socketData.roomName == roomName) {
+            sockets[i].emit('msg', JSON.stringify(messageData));
+            // console.log(" 还在房间中 ",socketData.id);
+            has = true;
+        }
+    }
+
+    // 房间内没人后，清除房间内的场景数据
+    if (!has) {
+        ClearRoomSceneState(roomName);
+    }
+}
+
+
+function GetRoomSceneState(roomName) {
+    // roomsScene.forEach(room => {
+    //     if (room.roomName == roomName) {
+    //         return room.sceneModels;
+    //     }
+    // });  
+    for (let i = 0; i < roomsScene.length; i++) {
+        const room = roomsScene[i];
+        if (room.roomName == roomName) {
+            return room.sceneModels;
+        }
+    }
+    return [];
+}
+
+// setInterval(() => {
+//     let messageData = {};
+//     messageData.type = "同步场景模型";
+//     messageData.fnName = "_DyncSceneFromServer";
+//     messageData.params = sceneModels;
+//     io.emit('msg', JSON.stringify(messageData));
+// }, 1000);
+
+setInterval(() => {
+    for (let i = 0; i < roomsScene.length; i++) {
+        const room = roomsScene[i];
+        for (let j = 0; j < room.sceneModels.length; j++) {
+            const item = room.sceneModels[j];
+            if (item.type == "offsetTime") {
+                const state = item.state;
+                var g = new Date().getTime(); //1675586194683
+                let offsetTime = g - state.startTime;
+                state.offsetTime = offsetTime;
+            }
         }
     }
 }, 20); 
