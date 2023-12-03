@@ -266,7 +266,7 @@ let roomsScene = [
     { roomName: '', sceneModels: [] },
 ];
 function addDyncSceneModel(sceneModels, id, type, state) {
-    sceneModels.push({ id: id, type: type, state: state });
+    sceneModels.push({ id: id, modelType: type, state: state });
 }
 function ClearRoomSceneState(roomName) {
     for (let i = roomsScene.length - 1; i >= 0; i--) {
@@ -278,6 +278,10 @@ function ClearRoomSceneState(roomName) {
 function AddRoomSceneState(roomName, sceneModels) {
     // 由服务器端同一设置起始和偏移时间
     addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683, });
+    addDyncSceneModel(sceneModels, "kouzhao", "交互模型", { value: 0, count: 0 });
+    addDyncSceneModel(sceneModels, "fanghufu", "交互模型", { value: 0, count: 0 });
+    addDyncSceneModel(sceneModels, "zhongcaoyao", "交互模型", { value: 0, count: 0 });
+    addDyncSceneModel(sceneModels, "jiujingpenghu", "交互模型", { value: 0, count: 0 });
     roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
     console.log("初始化场景状态", roomName, sceneModels);
 }
@@ -286,14 +290,41 @@ function UpdateRoomSceneState(roomName, _model) {
         if (room.roomName == roomName) {
             room.sceneModels.forEach(model => {
                 if (model.id == _model.id) {
-                    model.state = _model.state;
-                    if (_model.state.health == 0) {
-                        setTimeout(() => {
-                            model.state.health = model.state.maxHealth;
-                            model.state.display = true;
-                            SendMsgToRoom(roomName, "", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
-                        }, 12000);
+                    if (model.modelType == "NPC模型") {
+                        model.state = _model.state;
+                        if (_model.state.health == 0) {
+                            setTimeout(() => {
+                                model.state.health = model.state.maxHealth;
+                                model.state.display = true;
+                                SendMsgToRoom(roomName, "生成NPC", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
+                            }, 12000);
+                        }
                     }
+                    if (model.modelType == "交互模型") {
+                        if (_model.state.display != undefined) {
+                            //三秒后重新生成
+                            setTimeout(() => {
+                                model.state.display = true;
+                                SendMsgToRoom(roomName, "生成道具", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
+                            }, 12000);
+                            model.state = _model.state;
+                        } else {
+                            model.state.value = _model.state.value;
+                            if (_model.state.type == "add") {
+                                model.state.count++;
+                            }
+                            if (_model.state.type == "redius") {
+                                model.state.count--;
+                                if (model.state.count < 0) {
+                                    model.state.count = 0;
+                                }
+                            }
+                            //向房间内所有人广播
+                            SendMsgToRoom(roomName, "更新道具数量", model);
+                        }
+                    }
+
+                    console.log("更新场景物体", model);
                 }
             });
         }
@@ -304,6 +335,7 @@ async function SendMsgToRoom(roomName, title, model) {
     let messageData = {};
     messageData.type = "服务器下发";
     messageData.fnName = "ReceiveFromServer";
+    messageData.title = title;
     messageData.model = model;
     const sockets = await io.in(roomName).fetchSockets();
     for (let i = 0; i < sockets.length; i++) {
