@@ -67,8 +67,10 @@ io.on('connection', (socket) => {
                     return;
                 }
             }
-
-
+        }
+        if (params.type == "更新角色位置") {
+            // console.log(" 更新角色状态 ",params.message.user.userData);
+            socket.data.userData = params.message.user.userData;
         }
 
         if (params.type == "同步用户模型") {
@@ -92,7 +94,7 @@ io.on('connection', (socket) => {
             // 每个客户端对场景物体交互，都发送给服务器。再由服务器下发给其他客户端
             if (params.title == "更新single") {
                 UpdateRoomSceneState(params.message.roomName, params.model);
-            }
+            } 
         }
 
         // console.log("收到客户端的消息：",messageData); 
@@ -115,8 +117,7 @@ io.on('connection', (socket) => {
         socket.data.userName = messageData.userName;
 
 
-        console.log('user connected 加入房间 ', socket.id, messageData.roomName);
-
+        console.log(' ==客户端 加入房间 ', socket.id, messageData.roomName,FormatDate());
 
         // 刷新房间内其他用户
         GetAllUserByRoomName(socket, messageData.id, messageData.roomName);
@@ -168,11 +169,13 @@ async function GetAllUserByRoomName(socket, id, roomName) {
     for (let i = 0; i < sockets.length; i++) {
         const socketData = sockets[i].data;
         if (socketData.roomName == roomName) {
+            // console.log("刷新用户状态", socketData);
             allsocketName.push({
                 id: socketData.id,
                 userName: socketData.userName,
                 platform: socketData.platform,
                 roomName: socketData.roomName,
+                userData: socketData.userData,
             });
         }
     }
@@ -277,11 +280,7 @@ function ClearRoomSceneState(roomName) {
 }
 function AddRoomSceneState(roomName, sceneModels) {
     // 由服务器端同一设置起始和偏移时间
-    addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683, });
-    addDyncSceneModel(sceneModels, "kouzhao", "交互模型", { value: 0, count: 0 });
-    addDyncSceneModel(sceneModels, "fanghufu", "交互模型", { value: 0, count: 0 });
-    addDyncSceneModel(sceneModels, "zhongcaoyao", "交互模型", { value: 0, count: 0 });
-    addDyncSceneModel(sceneModels, "jiujingpenghu", "交互模型", { value: 0, count: 0 });
+    // addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683}); 
     roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
     console.log("初始化场景状态", roomName, sceneModels);
 }
@@ -290,6 +289,10 @@ function UpdateRoomSceneState(roomName, _model) {
         if (room.roomName == roomName) {
             room.sceneModels.forEach(model => {
                 if (model.id == _model.id) {
+                    if (model.modelType == "装备模型") {
+                        model.state = _model.state;
+                    }
+
                     if (model.modelType == "NPC模型") {
                         model.state = _model.state;
                         if (_model.state.health == 0) {
@@ -345,14 +348,62 @@ async function SendMsgToRoom(roomName, title, model) {
         }
     }
 }
+
+function FormatDate(){
+    var g = new Date().getTime(); //1637120820767
+    var now = new Date(g); //创建一个指定的日期对象
+    var year = now.getFullYear(); //取得4位数的年份
+    var month = now.getMonth() + 1; //取得日期中的月份，其中0表示1月，11表示12月
+    var date = now.getDate(); //返回日期月份中的天数（1到31）
+    var hour = now.getHours(); //返回日期中的小时数（0到23）
+    var minute = now.getMinutes(); //返回日期中的分钟数（0到59）
+    var second = now.getSeconds(); //返回日期中的秒数（0到59）
+    return (
+      year +
+      "-" +
+      month +
+      "-" +
+      date +
+      " " +
+      hour +
+      ":" +
+      minute
+        +  ":" +  second
+    );
+  }
+
 async function LeaveRoom(socket) {
-    console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName);
+    console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName,FormatDate() );
 
     let roomName = socket.data.roomName;
     let messageData = {};
     messageData.type = "用户离开";
     messageData.roomName = socket.data.roomName;
     messageData.id = socket.data.id;
+
+    let transId = "";
+    let pos = ""; 
+    if(socket.data.userData){
+        transId = socket.data.userData.weaponData.transId;
+        pos = socket.data.userData.pos;
+        // 如果下线玩家拿了武器，则把该武器重新显示
+        if (transId != "") {
+            pos.y += 1; 
+            let model = {};
+            model.id = transId;
+            model.modelType = "装备模型";
+            let state = {};
+            state.display = true;
+            state.pos = pos;
+            model.state = state; 
+            // 更新服务器中状态
+            UpdateRoomSceneState(roomName,model);
+            // 向房间中其他玩家下发
+            SendMsgToRoom(roomName,"还原装备",model);
+
+        }
+    }
+
     const sockets = await io.in(roomName).fetchSockets();
 
     let has = false;
