@@ -94,7 +94,7 @@ io.on('connection', (socket) => {
             // 每个客户端对场景物体交互，都发送给服务器。再由服务器下发给其他客户端
             if (params.title == "更新single") {
                 UpdateRoomSceneState(params.message.roomName, params.model);
-            } 
+            }
         }
 
         // console.log("收到客户端的消息：",messageData); 
@@ -117,7 +117,7 @@ io.on('connection', (socket) => {
         socket.data.userName = messageData.userName;
 
 
-        console.log(' ==客户端 加入房间 ', socket.id, messageData.roomName,FormatDate());
+        console.log(' ==客户端 加入房间 ', socket.id, messageData.roomName, FormatDate());
 
         // 刷新房间内其他用户
         GetAllUserByRoomName(socket, messageData.id, messageData.roomName);
@@ -294,23 +294,26 @@ function UpdateRoomSceneState(roomName, _model) {
                     }
 
                     if (model.modelType == "NPC模型") {
+                        let relifeTime = model.state.relifeTime;
                         model.state = _model.state;
-                        if (_model.state.health == 0) {
+                        model.state.relifeTime = relifeTime;
+                        if (_model.state.health == 0 &&  model.state.relifeTime >= 0 ) {
                             setTimeout(() => {
                                 model.state.health = model.state.maxHealth;
                                 model.state.display = true;
                                 SendMsgToRoom(roomName, "生成NPC", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
-                            }, 12000);
+                            }, model.state.relifeTime* 1000);
                         }
                     }
                     if (model.modelType == "交互模型") {
                         if (_model.state.display != undefined) {
-                            //三秒后重新生成
-                            setTimeout(() => {
-                                model.state.display = true;
-                                SendMsgToRoom(roomName, "生成道具", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
-                            }, 12000);
-                            model.state = _model.state;
+                            if(model.state.relifeTime >= 0){
+                                setTimeout(() => {
+                                    model.state.display = true;
+                                    SendMsgToRoom(roomName, "生成道具", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
+                                }, model.state.relifeTime * 1000);
+                            }
+                            model.state.display = _model.state.display;
                         } else {
                             model.state.value = _model.state.value;
                             if (_model.state.type == "add") {
@@ -349,7 +352,7 @@ async function SendMsgToRoom(roomName, title, model) {
     }
 }
 
-function FormatDate(){
+function FormatDate() {
     var g = new Date().getTime(); //1637120820767
     var now = new Date(g); //创建一个指定的日期对象
     var year = now.getFullYear(); //取得4位数的年份
@@ -359,21 +362,21 @@ function FormatDate(){
     var minute = now.getMinutes(); //返回日期中的分钟数（0到59）
     var second = now.getSeconds(); //返回日期中的秒数（0到59）
     return (
-      year +
-      "-" +
-      month +
-      "-" +
-      date +
-      " " +
-      hour +
-      ":" +
-      minute
-        +  ":" +  second
+        year +
+        "-" +
+        month +
+        "-" +
+        date +
+        " " +
+        hour +
+        ":" +
+        minute
+        + ":" + second
     );
-  }
+}
 
 async function LeaveRoom(socket) {
-    console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName,FormatDate() );
+    console.log(' ==客户端 离开房间 ', socket.data.id, socket.data.roomName, FormatDate());
 
     let roomName = socket.data.roomName;
     let messageData = {};
@@ -382,24 +385,24 @@ async function LeaveRoom(socket) {
     messageData.id = socket.data.id;
 
     let transId = "";
-    let pos = ""; 
-    if(socket.data.userData){
+    let pos = "";
+    if (socket.data.userData) {
         transId = socket.data.userData.weaponData.transId;
         pos = socket.data.userData.pos;
         // 如果下线玩家拿了武器，则把该武器重新显示
         if (transId != "") {
-            pos.y += 1; 
+            pos.y += 1;
             let model = {};
             model.id = transId;
             model.modelType = "装备模型";
             let state = {};
             state.display = true;
             state.pos = pos;
-            model.state = state; 
+            model.state = state;
             // 更新服务器中状态
-            UpdateRoomSceneState(roomName,model);
+            UpdateRoomSceneState(roomName, model);
             // 向房间中其他玩家下发
-            SendMsgToRoom(roomName,"还原装备",model);
+            SendMsgToRoom(roomName, "还原装备", model);
 
         }
     }
