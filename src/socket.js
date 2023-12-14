@@ -277,12 +277,33 @@ function ClearRoomSceneState(roomName) {
             roomsScene.splice(i, 1);
         }
     }
+    for (let i = laterFn.length-1; i >=0 ; i--) {
+        const element = laterFn[i];
+        if (element.roomName == roomName) {
+            for (let j = 0; j < element.laterFn.length; j++) {
+                const fn = element.laterFn[j];
+                clearTimeout(fn);
+            }
+            laterFn.splice(i, 1);
+        }
+    }
 }
+let laterFn = [];
+
 function AddRoomSceneState(roomName, sceneModels) {
     // 由服务器端同一设置起始和偏移时间
     // addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683}); 
     roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
+    laterFn.push({ roomName: roomName, laterFn: [] });
     console.log("初始化场景状态", roomName, sceneModels);
+}
+function AddRoomLaterFn(roomName, fn) {
+    for (let i = 0; i < laterFn.length; i++) {
+        const element = laterFn[i];
+        if (element.roomName == roomName) {
+            element.laterFn.push(fn);
+        }
+    }
 }
 function UpdateRoomSceneState(roomName, _model) {
     roomsScene.forEach(room => {
@@ -297,21 +318,22 @@ function UpdateRoomSceneState(roomName, _model) {
                         let relifeTime = model.state.relifeTime;
                         model.state = _model.state;
                         model.state.relifeTime = relifeTime;
-                        if (_model.state.health == 0 &&  model.state.relifeTime >= 0 ) {
-                            setTimeout(() => {
+                        if (_model.state.health == 0 && model.state.relifeTime >= 0) {
+                            AddRoomLaterFn(roomName, setTimeout(() => {
                                 model.state.health = model.state.maxHealth;
                                 model.state.display = true;
                                 SendMsgToRoom(roomName, "生成NPC", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
-                            }, model.state.relifeTime* 1000);
+                            }, model.state.relifeTime * 1000));
                         }
                     }
                     if (model.modelType == "交互模型") {
                         if (_model.state.display != undefined) {
-                            if(model.state.relifeTime >= 0){
-                                setTimeout(() => {
+                            if (model.state.relifeTime >= 0) {
+                                AddRoomLaterFn(roomName, setTimeout(() => {
                                     model.state.display = true;
                                     SendMsgToRoom(roomName, "生成道具", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
-                                }, model.state.relifeTime * 1000);
+                                }, model.state.relifeTime * 1000));
+
                             }
                             model.state.display = _model.state.display;
                         } else {
