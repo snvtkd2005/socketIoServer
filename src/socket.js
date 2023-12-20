@@ -408,7 +408,7 @@ async function LeaveRoom(socket) {
 
     let transId = "";
     let pos = "";
-    if (socket.data.userData) {
+    if (socket.data.userData && socket.data.userData.weaponData) {
         transId = socket.data.userData.weaponData.transId;
         pos = socket.data.userData.pos;
         // 如果下线玩家拿了武器，则把该武器重新显示
