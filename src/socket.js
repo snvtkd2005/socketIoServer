@@ -74,15 +74,6 @@ io.on('connection', (socket) => {
         }
 
         if (params.type == "同步用户模型") {
-            if (params.title == "添加") {
-                AddUserModel(params.userModel);
-            }
-            if (params.title == "修改") {
-                EditorUserModel(params.userModel);
-            }
-            if (params.title == "删除") {
-                DelUserModel(params.userModelId);
-            }
             // console.log("收到 同步用户模型 消息： ",params); 
         }
 
@@ -94,6 +85,16 @@ io.on('connection', (socket) => {
             // 每个客户端对场景物体交互，都发送给服务器。再由服务器下发给其他客户端
             if (params.title == "更新single") {
                 UpdateRoomSceneState(params.message.roomName, params.model);
+            }
+
+            if (params.title == "添加") {
+                AddUserModel(params.message.roomName, params.model);
+            }
+            if (params.title == "修改") {
+                EditorUserModel(params.message.roomName, params.model);
+            }
+            if (params.title == "删除") {
+                DelUserModel(params.message.roomName, params.model);
             }
         }
 
@@ -233,13 +234,24 @@ server.listen(3333, () => {
     console.log("server is up and running on port 3333");
 });
 
+
+
+
+
 // 用户创建的模型
 let userModels = [];
-function AddUserModel(item) {
-    userModels.push(item);
-    // console.log("添加模型");
+function AddUserModel(roomName, item) {
+    SendMsgToRoom(roomName, "添加", item);
+    console.log("添加模型",item);
+
+    roomsScene.forEach(room => {
+        if (room.roomName == roomName) {
+            room.sceneModels.push(item);
+            return;
+        }
+    });
 }
-function EditorUserModel(item) {
+function EditorUserModel(roomName, item) {
     let has = false;
     for (let i = userModels.length - 1; i >= 0 && !has; i--) {
         let elment = userModels[i];
@@ -251,15 +263,20 @@ function EditorUserModel(item) {
         }
     }
 }
-function DelUserModel(id) {
-    let find = false;
-    for (let i = userModels.length - 1; i >= 0 && !find; i--) {
-        const elment = userModels[i];
-        if (elment.id == id) {
-            userModels.splice(i, 1);
-            find = true;
+function DelUserModel(roomName, id) {
+    SendMsgToRoom(roomName, "删除", id);
+    roomsScene.forEach(room => {
+        if (room.roomName == roomName) {
+            for (let i = room.sceneModels.length - 1; i >= 0; i--) {
+                const elment = room.sceneModels[i];
+                if (elment.id == id) {
+                    room.sceneModels.splice(i, 1);
+                    return;
+                }
+            }
+            return;
         }
-    }
+    });
 }
 
 
@@ -277,7 +294,7 @@ function ClearRoomSceneState(roomName) {
             roomsScene.splice(i, 1);
         }
     }
-    for (let i = laterFn.length-1; i >=0 ; i--) {
+    for (let i = laterFn.length - 1; i >= 0; i--) {
         const element = laterFn[i];
         if (element.roomName == roomName) {
             for (let j = 0; j < element.laterFn.length; j++) {
@@ -290,9 +307,8 @@ function ClearRoomSceneState(roomName) {
 }
 let laterFn = [];
 
+// 初始化场景中同步数据
 function AddRoomSceneState(roomName, sceneModels) {
-    // 由服务器端同一设置起始和偏移时间
-    // addDyncSceneModel(sceneModels, "offsetTime", "offsetTime", { offsetTime: 0, startTime: 1675586194683}); 
     roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
     laterFn.push({ roomName: roomName, laterFn: [] });
     console.log("初始化场景状态", roomName, sceneModels);
@@ -408,7 +424,7 @@ async function LeaveRoom(socket) {
 
     let transId = "";
     let pos = "";
-    if (socket.data.userData) {
+    if (socket.data.userData && socket.data.userData.weaponData) {
         transId = socket.data.userData.weaponData.transId;
         pos = socket.data.userData.pos;
         // 如果下线玩家拿了武器，则把该武器重新显示
@@ -447,7 +463,6 @@ async function LeaveRoom(socket) {
     }
 }
 
-
 function GetRoomSceneState(roomName) {
     // roomsScene.forEach(room => {
     //     if (room.roomName == roomName) {
@@ -474,14 +489,21 @@ function GetRoomSceneState(roomName) {
 setInterval(() => {
     for (let i = 0; i < roomsScene.length; i++) {
         const room = roomsScene[i];
-        for (let j = 0; j < room.sceneModels.length; j++) {
-            const item = room.sceneModels[j];
-            if (item.type == "offsetTime") {
-                const state = item.state;
-                var g = new Date().getTime(); //1675586194683
-                let offsetTime = g - state.startTime;
-                state.offsetTime = offsetTime;
-            }
+        if (room.sceneModels.length > 0) {
+            const item = room.sceneModels[0];
+            const state = item.state;
+            var g = new Date().getTime(); //1675586194683
+            let offsetTime = g - state.startTime;
+            state.offsetTime = offsetTime;
         }
+        // for (let j = 0; j < room.sceneModels.length; j++) {
+        //     const item = room.sceneModels[j];
+        //     if (item.type == "offsetTime") {
+        //         const state = item.state;
+        //         var g = new Date().getTime(); //1675586194683
+        //         let offsetTime = g - state.startTime;
+        //         state.offsetTime = offsetTime;
+        //     }
+        // }
     }
 }, 20); 
