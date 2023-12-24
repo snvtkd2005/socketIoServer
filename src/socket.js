@@ -187,7 +187,7 @@ async function GetAllUserByRoomName(socket, id, roomName) {
 
     //先刷新用户，再刷新场景状态
     setTimeout(() => {
-        let sceneModels = GetRoomSceneState(messageData.roomName);
+        let { sceneModels, userModels } = GetRoomSceneState(messageData.roomName);
         if (sceneModels.length > 0) {
             let messageData = {};
             messageData.type = "获取场景状态";
@@ -195,6 +195,7 @@ async function GetAllUserByRoomName(socket, id, roomName) {
             messageData.title = "刷新";
             messageData.roomName = socket.data.roomName;
             messageData.sceneModels = sceneModels;
+            messageData.userModels = userModels;
             socket.emit('msg', JSON.stringify(messageData));
             // console.log("新用户加入，向其发送场景状态 ", sceneModels);
         }
@@ -242,10 +243,10 @@ server.listen(3333, () => {
 let userModels = [];
 function AddUserModel(roomName, item) {
     SendMsgToRoom(roomName, "添加", item);
-    console.log("添加模型",item);
-
+    // console.log("添加模型", item);
     roomsScene.forEach(room => {
         if (room.roomName == roomName) {
+            room.userModels.push(JSON.parse(JSON.stringify(item)));
             room.sceneModels.push(item);
             return;
         }
@@ -263,14 +264,28 @@ function EditorUserModel(roomName, item) {
         }
     }
 }
-function DelUserModel(roomName, id) {
-    SendMsgToRoom(roomName, "删除", id);
+function DelUserModel(roomName, model) {
+    SendMsgToRoom(roomName, "删除", model);
+    // console.log(" 删除 ", model);
+    let { type } = model;
+    let id = "";
+    if (type == "玩家镜像") {
+        let { npcId, playerId } = model;
+        id = npcId;
+    }
     roomsScene.forEach(room => {
         if (room.roomName == roomName) {
             for (let i = room.sceneModels.length - 1; i >= 0; i--) {
                 const elment = room.sceneModels[i];
                 if (elment.id == id) {
                     room.sceneModels.splice(i, 1);
+                    for (let ii = room.userModels.length - 1; ii >= 0; ii--) {
+                        const elment2 = room.userModels[ii];
+                        if (elment2.id == id) {
+                            room.userModels.splice(ii, 1);
+                            return;
+                        }
+                    }
                     return;
                 }
             }
@@ -283,7 +298,7 @@ function DelUserModel(roomName, id) {
 
 // 场景中同步的物体，在服务器中更新。用户每次连接或激活焦点，从服务器中读取物体状态
 let roomsScene = [
-    { roomName: '', sceneModels: [] },
+    { roomName: '', sceneModels: [], userModels: [] },
 ];
 function addDyncSceneModel(sceneModels, id, type, state) {
     sceneModels.push({ id: id, modelType: type, state: state });
@@ -309,7 +324,7 @@ let laterFn = [];
 
 // 初始化场景中同步数据
 function AddRoomSceneState(roomName, sceneModels) {
-    roomsScene.push({ roomName: roomName, sceneModels: sceneModels });
+    roomsScene.push({ roomName: roomName, sceneModels: sceneModels, userModels: [] });
     laterFn.push({ roomName: roomName, laterFn: [] });
     console.log("初始化场景状态", roomName, sceneModels);
 }
@@ -368,7 +383,7 @@ function UpdateRoomSceneState(roomName, _model) {
                         }
                     }
 
-                    console.log("更新场景物体", model);
+                    // console.log("更新场景物体", model);
                 }
             });
         }
@@ -472,10 +487,13 @@ function GetRoomSceneState(roomName) {
     for (let i = 0; i < roomsScene.length; i++) {
         const room = roomsScene[i];
         if (room.roomName == roomName) {
-            return room.sceneModels;
+            return {
+                sceneModels: room.sceneModels,
+                userModels: room.userModels
+            };
         }
     }
-    return [];
+    return { sceneModels: [], userModels: [] };
 }
 
 // setInterval(() => {
