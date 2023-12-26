@@ -274,7 +274,11 @@ http.createServer(options, function (req, res) {
             let fileName = "";
 
             foldPath = folderBase;
-            fileName = files.fileToUpload.originalFilename;
+            if(fields.fileName){
+                fileName = fields.fileName;
+            }else{
+                fileName = files.fileToUpload.originalFilename;
+            }
             // console.log(" 获取文件存储的文件夹名 ,",foldPath);
 
             if (!fs.existsSync(foldPath)) {
