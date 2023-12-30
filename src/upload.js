@@ -538,7 +538,7 @@ http.createServer(options, function (req, res) {
                 const filePath = path.join(folderPath, file);
                 const stats = fs.statSync(filePath);
                 if (stats.isFile) {
-                    txtList.push(file + "/" + file + "_data.txt");
+                    txtList.push(file + "/"  + "data.txt");
                 }
             });
 
@@ -550,7 +550,10 @@ http.createServer(options, function (req, res) {
                 fs.readFile(folderPath + element, 'utf8', (err, data) => {
                     if (err) throw err;
                     // console.log(data);
-                    txtDataList.push(data);
+                    let scene = JSON.parse(data);
+                    scene.folderBase = element.split('/')[0];
+                    // console.log(" scene.folderBase ",scene.folderBase);
+                    txtDataList.push(scene);
                 });
             }
 
