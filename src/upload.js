@@ -51,7 +51,7 @@ function SaveMapMetaWorld() {
     });
 }
 function CheckMapId(id, folderBase, msg) {
-    console.log(msg);
+    console.log(id,folderBase,msg);
 
     if (msg.type == "查找") {
         let folderBaseList = [];
