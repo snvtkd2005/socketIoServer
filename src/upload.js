@@ -8,6 +8,7 @@ const unzipper = require('unzipper'); // 解压缩模块
 // 保存文件的目录
 const UPLOAD_DIR = './uploads/';
 
+const UPLOAD_DIR_AUDIO = './uploadsAudio/';
 const UPLOAD_DIR_GROUP = './uploadsGroup/';
 const UPLOAD_DIR_SCENE = './uploadsScene/';
 const UPLOAD_DIR_HDR = './uploadsHDR/';
@@ -353,7 +354,60 @@ http.createServer(options, function (req, res) {
         return;
 
     }
+    
+    if (req.url === '/uploadAudio' && req.method.toLowerCase() === 'post') { //上传文件 
 
+        // console.log("req ",req);
+        const form = new formidable.IncomingForm(
+            {
+                encoding: 'utf-8'
+            }
+        );
+        form.uploadDir = UPLOAD_DIR_AUDIO;
+        // form.multiples = true; // enable multiple file upload
+
+        form.parse(req, function (err, fields, files) {
+            if (err) throw err; // 将上传的文件保存到叫做 "uploads" 的文件夹中 
+
+            // console.log("files,",files);
+            const oldPath = files.fileToUpload.filepath;
+
+            let folderBase = UPLOAD_DIR_AUDIO + fields.folderBase;
+            if (!fs.existsSync(folderBase)) {
+                fs.mkdirSync(folderBase);
+            }
+
+            let foldPath = "";
+            let fileName = "";
+
+            foldPath = folderBase;
+            if(fields.fileName){
+                fileName = fields.fileName;
+            }else{
+                fileName = files.fileToUpload.originalFilename;
+            }
+            // console.log(" 获取文件存储的文件夹名 ,",foldPath);
+
+            if (!fs.existsSync(foldPath)) {
+                fs.mkdirSync(foldPath);
+            }
+            const newPath = foldPath + "/" + fileName;
+            fs.rename(oldPath, newPath, function (err) {
+                if (err) {
+                    res.write('FAILD' + err);
+                    return res.end();
+                };
+                // res.writeHead(200, {'Content-Type': 'text/html'}); 
+                res.write('SUCCESS');
+                console.log("文件上传成功！", newPath);
+                return res.end();
+            });
+        });
+
+        return;
+
+    }
+    
     if (req.url === '/uploadHDR' && req.method.toLowerCase() === 'post') { //上传文件 
 
         // console.log("req ",req);
@@ -671,7 +725,58 @@ http.createServer(options, function (req, res) {
 
         return;
     }
+    if (req.url === '/getAllAudio' && req.method.toLowerCase() === 'get') {
+        //获取所有文件夹内的data.txt
+        const folderPath = UPLOAD_DIR_AUDIO;
 
+
+        let txtList = [];
+        fs.readdir(folderPath, (err, files) => {
+            if (err) throw err;
+            // console.log(files);
+            files.forEach(file => {
+                const filePath = path.join(folderPath, file);
+                const stats = fs.statSync(filePath);
+                if (stats.isFile) {
+                }
+                // console.log(file);
+                if (stats.isDirectory) {
+                    txtList.push(file);
+                }
+            });
+
+            // console.log(txtList);
+
+            let txtDataList = [];
+            for (let i = 0; i < txtList.length; i++) {
+                const element = txtList[i];
+                fs.readdir(folderPath + element, (err, files) => {
+                    if (err) throw err;
+                    files.forEach(file => {
+                        const filePath = path.join(folderPath + element, file);
+                        const stats = fs.statSync(filePath);
+                        if (stats.isFile) {
+                            txtDataList.push(element + "/" + file);
+                        }
+                        // console.log(file);
+                        if (stats.isDirectory) {
+                        }
+                    });
+                });
+            }
+
+            setTimeout(() => {
+                let resData = {};
+                resData.txtDataList = txtDataList;
+                res.write(JSON.stringify(resData));
+                return res.end();
+            }, 1000);
+
+        });
+
+
+        return;
+    }
 
     if (req.url === '/getAllModel' && req.method.toLowerCase() === 'get') {
         //获取所有文件夹内的data.txt
