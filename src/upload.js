@@ -106,12 +106,8 @@ http.createServer(options, function (req, res) {
         );
         form.parse(req, function (err, fields) {
             if (err) throw err;
-            let dir = "";
-            if (fields.type == "scene") {
-                dir = UPLOAD_DIR_SCENE;
-            } else {
-                dir = UPLOAD_DIR;
-            }
+            let dir = "./";
+            dir += fields.type;
             fs.rmdir(dir + fields.folderBase, { recursive: true }, (e) => {
                 res.write('SUCCESS'+e);
                 return res.end();
@@ -730,6 +726,7 @@ http.createServer(options, function (req, res) {
         const folderPath = UPLOAD_DIR_AUDIO;
 
 
+
         let txtList = [];
         fs.readdir(folderPath, (err, files) => {
             if (err) throw err;
@@ -738,10 +735,7 @@ http.createServer(options, function (req, res) {
                 const filePath = path.join(folderPath, file);
                 const stats = fs.statSync(filePath);
                 if (stats.isFile) {
-                }
-                // console.log(file);
-                if (stats.isDirectory) {
-                    txtList.push(file);
+                    txtList.push(file + "/"  + "data.txt");
                 }
             });
 
@@ -750,18 +744,13 @@ http.createServer(options, function (req, res) {
             let txtDataList = [];
             for (let i = 0; i < txtList.length; i++) {
                 const element = txtList[i];
-                fs.readdir(folderPath + element, (err, files) => {
+                fs.readFile(folderPath + element, 'utf8', (err, data) => {
                     if (err) throw err;
-                    files.forEach(file => {
-                        const filePath = path.join(folderPath + element, file);
-                        const stats = fs.statSync(filePath);
-                        if (stats.isFile) {
-                            txtDataList.push(element + "/" + file);
-                        }
-                        // console.log(file);
-                        if (stats.isDirectory) {
-                        }
-                    });
+                    // console.log(data);
+                    let scene = JSON.parse(data);
+                    scene.folderBase = element.split('/')[0];
+                    // console.log(" scene.folderBase ",scene.folderBase);
+                    txtDataList.push(scene);
                 });
             }
 
@@ -771,6 +760,7 @@ http.createServer(options, function (req, res) {
                 res.write(JSON.stringify(resData));
                 return res.end();
             }, 1000);
+
 
         });
 
