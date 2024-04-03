@@ -28,9 +28,40 @@ const io = socketIO(server, {
     }
 });
 
+const request = require('request');
+function getLocationByIP(ip) {
+    ip = ip.split("f:")[1];
+
+    const apiKey = 'vBLzcIDbdZL5n8RLkh7CDdZes3dMo3li';
+    const url = `https://api.map.baidu.com/location/ip?ip=${ip}&coor=bd09ll&ak=${apiKey}`;
+    // const url = `https://api.map.baidu.com/location/ip?ak=${apiKey}&ip=${ip}&coor=bd09ll`;
+   
+    return new Promise((resolve, reject) => {
+        
+        if(ip == "127.0.0.1"){
+            resolve("local");
+            return;
+        }
+        if(ip == "192.168.71.108"){
+            resolve("local");
+            return;
+        }
+        request(url, (error, response, body) => {
+        if (error) {
+          reject(error);
+        } else {
+            let content = JSON.parse(body).content;
+            if(content){
+                const location = content.address;
+                resolve(location);
+            }
+        }
+      });
+    });
+}
+
 
 let mainUserTimes = 0;
-
 io.on('connection', (socket) => {
     socket.emit('msg', 'id=' + socket.id, () => { });
 
@@ -105,6 +136,7 @@ io.on('connection', (socket) => {
         // io.in(messageData.roomName).emit('msg', JSON.stringify(messageData));
     })
 
+
     //监听客户端加入游戏或切换房间
     socket.on('joinRoom', (data) => {
         let messageData = JSON.parse(data);
@@ -117,8 +149,13 @@ io.on('connection', (socket) => {
         socket.data.platform = messageData.platform;
         socket.data.userName = messageData.userName;
 
-
-        console.log(' ==客户端 加入房间 ', socket.id, messageData.roomName, FormatDate());
+        getLocationByIP(socket.handshake.address).then((location) => {
+            console.log(location);
+            console.log(' ==客户端 加入房间 ', socket.id,location, messageData.roomName, FormatDate());
+          }).catch((error) => {
+            console.log(' ==客户端 加入房间 ', socket.id, messageData.roomName, FormatDate());
+            console.error(error);
+        });
 
         // 刷新房间内其他用户
         GetAllUserByRoomName(socket, messageData.id, messageData.roomName);
@@ -253,22 +290,24 @@ function AddUserModel(roomName, item) {
     });
 }
 function EditorUserModel(roomName, item) {
-    let has = false;
-    for (let i = userModels.length - 1; i >= 0 && !has; i--) {
-        let elment = userModels[i];
-        if (elment.id == item.id) {
-            elment = item;
-            userModels[i] = item;
-            // console.log("修改模型数据",elment);
-            has = true;
+
+    roomsScene.forEach(room => {
+        if (room.roomName == roomName) {
+            for (let i = room.userModels.length - 1; i >= 0; i--) {
+                const elment = room.userModels[i];
+                if (elment.id == item.id) {
+                    
+                }
+            }
+            return;
         }
-    }
+    });
+ 
 }
 function DelUserModel(roomName, model) {
     SendMsgToRoom(roomName, "删除", model);
     // console.log(" 删除 ", model);
-    let { type } = model;
-    let id = "";
+    let {id, type,modelType } = model;
     if (type == "玩家镜像") {
         let { npcId, playerId } = model;
         id = npcId;
@@ -326,7 +365,7 @@ let laterFn = [];
 function AddRoomSceneState(roomName, sceneModels) {
     roomsScene.push({ roomName: roomName, sceneModels: sceneModels, userModels: [] });
     laterFn.push({ roomName: roomName, laterFn: [] });
-    console.log("初始化场景状态", roomName, sceneModels);
+    // console.log("初始化场景状态", roomName, sceneModels);
 }
 function AddRoomLaterFn(roomName, fn) {
     for (let i = 0; i < laterFn.length; i++) {
@@ -349,7 +388,7 @@ function UpdateRoomSceneState(roomName, _model) {
                         let relifeTime = model.state.relifeTime;
                         model.state = _model.state;
                         model.state.relifeTime = relifeTime;
-                        if (_model.state.health == 0 && model.state.relifeTime >= 0) {
+                        if (_model.state.health == 0 && model.state.relifeTime > 0) {
                             AddRoomLaterFn(roomName, setTimeout(() => {
                                 model.state.health = model.state.maxHealth;
                                 model.state.display = true;
@@ -359,12 +398,11 @@ function UpdateRoomSceneState(roomName, _model) {
                     }
                     if (model.modelType == "交互模型") {
                         if (_model.state.display != undefined) {
-                            if (model.state.relifeTime >= 0) {
+                            if (model.state.relifeTime > 0) {
                                 AddRoomLaterFn(roomName, setTimeout(() => {
                                     model.state.display = true;
                                     SendMsgToRoom(roomName, "生成道具", { id: model.id, modelType: model.modelType, state: { display: true, title: "重新生成" } });
                                 }, model.state.relifeTime * 1000));
-
                             }
                             model.state.display = _model.state.display;
                         } else {

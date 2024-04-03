@@ -43,6 +43,16 @@ function LoadMapMetaWorld() {
 }
 LoadMapMetaWorld();
 
+
+function testCopyFile(){
+    fs.cp("./metaworld.txt","./copy/metawod.txt",(err)=>{
+        if(err){
+            console.error(err);
+        }
+    });
+}
+testCopyFile();
+
 function SaveMapMetaWorld() {
     let message = JSON.stringify(mapToScene);
     fs.writeFile(METAWORLD_DIR + "/metaworld.txt", message, function (err) {
@@ -293,6 +303,36 @@ http.createServer(options, function (req, res) {
                 console.log("文件上传成功！", newPath);
                 return res.end();
             });
+        });
+
+        return;
+
+    }
+    if (req.url === '/downloadScene' && req.method.toLowerCase() === 'post') { //下载场景所有数据 
+        const form = new formidable.IncomingForm(
+            {
+                encoding: 'utf-8'
+            }
+        );
+        form.uploadDir = UPLOAD_DIR_SCENE;
+        // form.multiples = true; // enable multiple file upload
+
+        form.parse(req, function (err, fields, files) {
+            if (err) throw err; // 将上传的文件保存到叫做 "uploads" 的文件夹中 
+
+            // console.log("files,",files);
+            const oldPath = files.fileToUpload.filepath;
+
+            let folderBase = UPLOAD_DIR_SCENE + fields.folderBase;
+            if (!fs.existsSync(folderBase)) {
+                res.write('none found');
+                return res.end();
+            }
+            // 读取场景的模型数据
+            // 复制场景数据到新路径
+            // 打包压缩场景设置文件和场景模型文件夹
+            
+            
         });
 
         return;
@@ -785,7 +825,7 @@ http.createServer(options, function (req, res) {
                 }
                 // console.log(file);
                 if (stats.isDirectory) {
-                    txtList.push(file + "/" + file + "_data.txt");
+                    txtList.push(file + "/"  + "data.txt");
                 }
             });
 
