@@ -2,6 +2,7 @@
 const http = require('https');
 const formidable = require('formidable');
 const fs = require('fs');
+const fspromises = require('fs').promises;  
 const path = require('path');
 
 const unzipper = require('unzipper'); // 解压缩模块
@@ -42,16 +43,26 @@ function LoadMapMetaWorld() {
     });
 }
 LoadMapMetaWorld();
+async function copyDir(src, dest) {
+    // 读取源目录内容  
+    const entries = await fspromises.readdir(src, { withFileTypes: true });
 
+    // 确保目标目录存在  
+    await fspromises.mkdir(dest, { recursive: true });
 
-function testCopyFile(){
-    fs.cp("./metaworld.txt","./copy/metawod.txt",(err)=>{
-        if(err){
-            console.error(err);
+    for (let entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+            // 如果是目录，则递归复制  
+            await copyDir(srcPath, destPath);
+        } else {
+            // 如果是文件，则复制文件  
+            await fspromises.copyFile(srcPath, destPath);
         }
-    });
+    }
 }
-testCopyFile();
 
 function SaveMapMetaWorld() {
     let message = JSON.stringify(mapToScene);
@@ -106,6 +117,24 @@ http.createServer(options, function (req, res) {
     // res.setHeader("Access-Control-Allow-Origin", "https://snvtkd2005.com");
     res.setHeader("Access-Control-Allow-Origin", "*");
 
+    // 复制文件夹到新文件夹
+    if (req.url === '/copyFolderBase' && req.method.toLowerCase() === 'post') {
+        const form = new formidable.IncomingForm(
+            {
+                encoding: 'utf-8'
+            }
+        );
+        form.parse(req, async function (err, fields) {
+            if (err) throw err;
+            let dir = "./" + fields.type + fields.folderBase;
+            let newdir = "./" + fields.type + fields.newfolderBase;
+            await copyDir(dir, newdir);
+            res.write('SUCCESS');
+            return res.end();          
+        });
+        return;
+
+    }
 
     // 删除单品文件夹
     if (req.url === '/removeFolderBase' && req.method.toLowerCase() === 'post') {
@@ -825,35 +854,31 @@ http.createServer(options, function (req, res) {
                 }
                 // console.log(file);
                 if (stats.isDirectory) {
-                    txtList.push(file + "/"  + "data.txt");
+                    txtList.push(file);
                 }
             });
 
             // console.log(txtList);
 
-            let txtDataList = [];
+            let txtDataList = [];  
             for (let i = 0; i < txtList.length; i++) {
                 const element = txtList[i];
-                fs.readFile(folderPath + element, 'utf8', (err, data) => {
-                    if (err) throw err;
-                    // console.log(data);
-                    txtDataList.push(data);
+                fs.readFile(folderPath + element+"/data.txt", 'utf8', (err, data) => {
+                    if (err) throw err; 
+                    txtDataList.push(data); 
                 });
             }
 
             setTimeout(() => {
                 let resData = {};
                 resData.txtDataList = txtDataList;
+                resData.txtFolderBaseList = txtList;
                 res.write(JSON.stringify(resData));
                 return res.end();
             }, 1000);
 
 
-        });
-
-
-
-
+        }); 
         return;
     }
 

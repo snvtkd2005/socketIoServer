@@ -87,14 +87,18 @@ io.on('connection', (socket) => {
                     mainUserTimes = 0;
                 }
                 if (params.message.user.cancelMainUser == "获取主控权") {
-                    if (mainUserTimes == 0) {
-                        mainUserTimes++;
-                        if (mainUserTimes == 1) {
-                            params.message.user.cancelMainUser = "指定主控权";
-                            messageData.params = params;
-                            io.emit('msg', JSON.stringify(messageData));
-                        }
-                    }
+                    // if (mainUserTimes == 0) {
+                    //     mainUserTimes++;
+                    //     if (mainUserTimes == 1) {
+                    //         params.message.user.cancelMainUser = "指定主控权";
+                    //         messageData.params = params;
+                    //         io.emit('msg', JSON.stringify(messageData));
+                    //     }
+                    // }
+                    
+                    params.message.user.cancelMainUser = "指定主控权";
+                    messageData.params = params;
+                    io.emit('msg', JSON.stringify(messageData));
                     return;
                 }
             }
